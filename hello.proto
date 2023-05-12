@@ -1,0 +1,24 @@
+syntax = "proto3";
+package hello.service.v1;
+option go_package = ".;hello";
+
+import "google/api/annotations.proto";
+
+
+message StringMessage {
+  string value = 1;
+}
+
+service Cars {
+    rpc GetCars(StringMessage) returns (StringMessage) {
+          option (google.api.http) = {
+              get: "/api/v1/cars"
+            };
+        }
+    rpc CreateCar(StringMessage) returns (StringMessage) {
+      option (google.api.http) = {
+        post: "/api/v1/cars"
+        body: "*"
+      };
+    }
+}
