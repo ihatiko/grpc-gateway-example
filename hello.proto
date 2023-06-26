@@ -10,7 +10,7 @@ message StringMessage {
 }
 
 service Cars {
-    rpc GetCars(StringMessage) returns (StringMessage) {
+    rpc GetCars(stream StringMessage) returns (StringMessage) {
           option (google.api.http) = {
               get: "/api/v1/cars"
             };

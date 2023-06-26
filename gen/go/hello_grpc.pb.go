@@ -27,7 +27,7 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type CarsClient interface {
-	GetCars(ctx context.Context, in *StringMessage, opts ...grpc.CallOption) (*StringMessage, error)
+	GetCars(ctx context.Context, opts ...grpc.CallOption) (Cars_GetCarsClient, error)
 	CreateCar(ctx context.Context, in *StringMessage, opts ...grpc.CallOption) (*StringMessage, error)
 }
 
@@ -39,13 +39,38 @@ func NewCarsClient(cc grpc.ClientConnInterface) CarsClient {
 	return &carsClient{cc}
 }
 
-func (c *carsClient) GetCars(ctx context.Context, in *StringMessage, opts ...grpc.CallOption) (*StringMessage, error) {
-	out := new(StringMessage)
-	err := c.cc.Invoke(ctx, Cars_GetCars_FullMethodName, in, out, opts...)
+func (c *carsClient) GetCars(ctx context.Context, opts ...grpc.CallOption) (Cars_GetCarsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Cars_ServiceDesc.Streams[0], Cars_GetCars_FullMethodName, opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &carsGetCarsClient{stream}
+	return x, nil
+}
+
+type Cars_GetCarsClient interface {
+	Send(*StringMessage) error
+	CloseAndRecv() (*StringMessage, error)
+	grpc.ClientStream
+}
+
+type carsGetCarsClient struct {
+	grpc.ClientStream
+}
+
+func (x *carsGetCarsClient) Send(m *StringMessage) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *carsGetCarsClient) CloseAndRecv() (*StringMessage, error) {
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	m := new(StringMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *carsClient) CreateCar(ctx context.Context, in *StringMessage, opts ...grpc.CallOption) (*StringMessage, error) {
@@ -61,7 +86,7 @@ func (c *carsClient) CreateCar(ctx context.Context, in *StringMessage, opts ...g
 // All implementations must embed UnimplementedCarsServer
 // for forward compatibility
 type CarsServer interface {
-	GetCars(context.Context, *StringMessage) (*StringMessage, error)
+	GetCars(Cars_GetCarsServer) error
 	CreateCar(context.Context, *StringMessage) (*StringMessage, error)
 	mustEmbedUnimplementedCarsServer()
 }
@@ -70,8 +95,8 @@ type CarsServer interface {
 type UnimplementedCarsServer struct {
 }
 
-func (UnimplementedCarsServer) GetCars(context.Context, *StringMessage) (*StringMessage, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method GetCars not implemented")
+func (UnimplementedCarsServer) GetCars(Cars_GetCarsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetCars not implemented")
 }
 func (UnimplementedCarsServer) CreateCar(context.Context, *StringMessage) (*StringMessage, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method CreateCar not implemented")
@@ -89,22 +114,30 @@ func RegisterCarsServer(s grpc.ServiceRegistrar, srv CarsServer) {
 	s.RegisterService(&Cars_ServiceDesc, srv)
 }
 
-func _Cars_GetCars_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(StringMessage)
-	if err := dec(in); err != nil {
+func _Cars_GetCars_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(CarsServer).GetCars(&carsGetCarsServer{stream})
+}
+
+type Cars_GetCarsServer interface {
+	SendAndClose(*StringMessage) error
+	Recv() (*StringMessage, error)
+	grpc.ServerStream
+}
+
+type carsGetCarsServer struct {
+	grpc.ServerStream
+}
+
+func (x *carsGetCarsServer) SendAndClose(m *StringMessage) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *carsGetCarsServer) Recv() (*StringMessage, error) {
+	m := new(StringMessage)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(CarsServer).GetCars(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: Cars_GetCars_FullMethodName,
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CarsServer).GetCars(ctx, req.(*StringMessage))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _Cars_CreateCar_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -133,14 +166,16 @@ var Cars_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*CarsServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetCars",
-			Handler:    _Cars_GetCars_Handler,
-		},
-		{
 			MethodName: "CreateCar",
 			Handler:    _Cars_CreateCar_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "GetCars",
+			Handler:       _Cars_GetCars_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "hello.proto",
 }
